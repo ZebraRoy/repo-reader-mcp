@@ -69,7 +69,7 @@ async function createServer(args: Record<string, string>) {
       filePath: z.string().describe("The path of the file to read. You can use the menu to get the path. If the filename is unique, you can use the filename instead of the path."),
       line: z.number().optional().describe("Specific line number to retrieve (1-indexed). Only pass this parameter if you only need to see a few lines of the file, often used when you want to find all files that contain a specific keyword."),
       range: z.number().optional().describe("Number of lines before and after the target line to include (default: 3). Increase this number if you want to see more context."),
-    }, async ({ filePath, line, range }) => {
+    }, async ({ filePath, line, range = 3 }) => {
       const file = await readDocument({
         projectCloneLocation: projectCloneLocation,
         filePath,
