@@ -26,6 +26,10 @@ function parseArgs() {
   return parsedArgs
 }
 
+function getDefaultDepth(config: { depth?: number }) {
+  return config.depth ?? -1
+}
+
 async function createServer(args: Record<string, string>) {
   const name = args["name"]
   const repoPath = args["repo-path"]
@@ -48,7 +52,7 @@ async function createServer(args: Record<string, string>) {
     const toolName = config.name
     server.tool(`${toolName}-menu`, `Get a menu of ${toolName}. Use it to understand the structure of ${toolName}.`, {
       subPath: z.string().optional().describe("Only show the menu of the sub path. Use it when you found the whole menu is too long."),
-      depth: z.number().optional().describe("Menu depth. Defaults to repo-reader.config.json depth when omitted. Use -1 for full depth (all)."),
+      depth: z.number().optional().describe(`Menu depth. Use -1 or omit for full depth (all). Defaults is ${getDefaultDepth(config)}.`),
     }, async ({ subPath, depth }) => {
       const effectiveDepth = depth ?? config.depth
       const tree = await hierarchyMenu({
