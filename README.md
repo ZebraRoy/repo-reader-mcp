@@ -53,6 +53,7 @@ Cursor Mac/Linux:
       "args": [
         "-y",
         "repo-reader-mcp",
+        "--name={name}",
         "--repo-path=https://github.com/user/repo"
       ]
     }
@@ -65,13 +66,14 @@ Cursor Windows:
 ```json
 {
   "mcpServers": {
-    "repo-reader-mcp": {
+    "repo-reader-mcp-{name}": {
       "command": "cmd",
       "args": [
         "/c",
         "npx",
         "-y",
         "repo-reader-mcp",
+        "--name={name}",
         "--repo-path=https://github.com/user/repo"
       ]
     }
@@ -79,17 +81,23 @@ Cursor Windows:
 }
 ```
 
-To access private repository, you either have access to the repository or you have a token.
-If you have a token, you can use argument `--personal-token` or you add the token to the repo path (e.g. `https://<token>@github.com/user/repo`).
+Notes:
+
+- The server dynamically exposes tools using the configured name from `repo-reader.config.json` or the `--name` CLI flag. If neither is set, the tool name defaults to the repository name derived from the URL.
+- When no `--repo-path` is provided, only a single tool `repo-reader-setup` is exposed to guide setup.
+
+To access private repositories, you either need direct access or a token.
+If you have a token, you can use `--personal-token` or embed the token in the repo URL.
 
 ```json
 {
   "mcpServers": {
-    "repo-reader-mcp": {
+    "repo-reader-mcp-{name}": {
       "command": "npx",
       "args": [
         "-y",
         "repo-reader-mcp",
+        "--name={name}",
         "--repo-path=https://github.com/user/repo",
         "--personal-token=your-token"
       ]
@@ -98,10 +106,27 @@ If you have a token, you can use argument `--personal-token` or you add the toke
 }
 ```
 
+Authentication behavior:
+
+- GitHub HTTPS: inserts token as `https://{token}@github.com/...`
+- GitLab HTTPS (including self-hosted): inserts token as `https://oauth2:{token}@...`
+- Bitbucket HTTPS: inserts token as `https://x-token-auth:{token}@bitbucket.org/...`
+- SSH form `git@host:user/repo.git` is converted to HTTPS and token applied similarly based on host (GitHub/GitLab/Bitbucket or generic self-hosted).
+
 Other arguments:
 
-- `--branch`: The branch to read from. Default is `main`.
-- `--clone-location`: The location to clone the repository. Default is os.homedir() + ".temp-repo". This MCP will clone the repository to `/${cloneLocation}/name`.
+- `--branch`: Branch to read from. Default: `main`.
+- `--clone-location`: Directory to clone into. Default: `${os.homedir()}/.temp-repo`. The full clone path is `${cloneLocation}/{name}`.
+- `--files`: Comma-separated glob patterns to override repo config `files` for sparse checkout (e.g., `src/**,README.md,.github/**`).
+- `--name`: Override the tool/server name. If omitted, the name derives from repo URL or config.
+
+### Tools exposed when configured
+
+If `--repo-path` is provided (and clone succeeds), the server exposes three tools using the resolved `name`:
+
+- `{name}-menu`: Get a menu of `{name}`. Optional params: `subPath?: string`, `depth?: number` (use `-1` or omit for full depth; default mirrors repo config `depth` or `-1`).
+- `{name}-read-file`: Read a file. Params: `filePath: string`, `line?: number`, `range?: number`.
+- `{name}-search-file`: Search text across files. Params: `query: string`, `caseSensitive?: boolean`, `wholeWord?: boolean`, `regex?: boolean`.
 
 ### Default configuration (no repo-reader.config.json)
 
@@ -115,6 +140,6 @@ If the target repo cannot be modified to add `repo-reader.config.json`, the MCP 
 }
 ```
 
-- The MCP attempts to read `repo-reader.config.json` from the branch; if missing or invalid, defaults are used.
-- Default `name` is derived from the repository URL (e.g., `user/repo.git` → `repo`).
+- The MCP attempts to read `repo-reader.config.json` from the target branch; if missing or invalid, defaults are used.
+- Default `name` is derived from the repository URL or SSH path (e.g., `git@host:user/repo.git` → `repo`).
 - If the file exists but is partial, missing fields are filled with defaults.

@@ -36,6 +36,8 @@ async function createServer(args: Record<string, string>) {
   const personalToken = args["personal-token"]
   const branch = args["branch"] || "main"
   const cloneLocation = args["clone-location"]
+  const filesArg = args["files"]
+  const filesOverride = filesArg ? filesArg.split(",").map(s => s.trim()).filter(Boolean) : undefined
   const server = new McpServer({
     name: "repo-reader-mcp",
     version: "0.1.0",
@@ -48,6 +50,7 @@ async function createServer(args: Record<string, string>) {
       branch,
       cloneLocation,
       personalToken,
+      filesOverride,
     })
     const toolName = config.name
     server.tool(`${toolName}-menu`, `Get a menu of ${toolName}. Use it to understand the structure of ${toolName}.`, {

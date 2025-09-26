@@ -67,13 +67,14 @@ const getAuthenticatedRepoPath = (repoPath: string, personalToken?: string) => {
 }
 
 export async function createSparseCheckout({
-  name, repoPath, branch, cloneLocation, personalToken,
+  name, repoPath, branch, cloneLocation, personalToken, filesOverride,
 }: {
   name: string
   repoPath: string
   branch: string
   cloneLocation: string
   personalToken?: string
+  filesOverride?: string[]
 }) {
   // Use project-specific clone location if not explicitly provided
   const projectCloneLocation = getCloneDir(name, cloneLocation)
@@ -176,6 +177,17 @@ export async function createSparseCheckout({
     else {
       // No config file; use defaults
       effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
+    }
+  }
+
+  // Apply files override from CLI if provided
+  if (Array.isArray(filesOverride) && filesOverride.length > 0) {
+    const cleaned = filesOverride
+      .map(pattern => (typeof pattern === "string" ? pattern.trim() : ""))
+      .filter(pattern => pattern.length > 0)
+      .map(pattern => pattern.replace(/\\/g, "/"))
+    if (cleaned.length > 0) {
+      effectiveConfig.files = cleaned
     }
   }
 
