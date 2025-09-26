@@ -47,8 +47,10 @@ async function buildAsciiTree(
 
     if (entry.kind === "dir") {
       const nextPrefix = prefix + (isLast ? "    " : "│   ")
-      if (remainingDepth === undefined || remainingDepth > 1) {
-        const nextDepth = remainingDepth === undefined ? undefined : remainingDepth - 1
+      if (remainingDepth === undefined || remainingDepth === -1 || remainingDepth > 1) {
+        const nextDepth = remainingDepth === undefined || remainingDepth === -1
+          ? remainingDepth
+          : remainingDepth - 1
         try {
           const childLines = await buildAsciiTree(
             path.join(dir, entry.name),
@@ -80,7 +82,17 @@ export async function hierarchyMenu({
   let treeLines: string[] = [rootName]
   try {
     const dir = path.join(projectCloneLocation, normalizeOsPath(subPath))
-    const remainingDepth = depth && depth > 0 ? depth : undefined
+    // Interpret depth:
+    // - undefined: unlimited
+    // - -1: unlimited
+    // - n > 0: limit to n levels (1 shows only immediate children)
+    // - other values: treat as unlimited
+    let remainingDepth: number | undefined = undefined
+    if (typeof depth === "number") {
+      if (depth === -1) remainingDepth = -1
+      else if (depth > 0) remainingDepth = depth
+      else remainingDepth = undefined
+    }
     const childLines = await buildAsciiTree(dir, "", remainingDepth)
     treeLines = [rootName, ...childLines]
   }

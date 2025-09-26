@@ -4,6 +4,7 @@ Goal: Help other projects consume this repo. Focus on public API, install, and e
 Create repo-reader.config.json at repository root with:
 - name: Repository name (used by the tool)
 - files: Glob patterns that surface consumer-facing docs and public exports
+ - depth (optional): Default menu depth. Use -1 for full depth (all)
 
 Recommended minimal config
 \`\`\`json
@@ -17,7 +18,8 @@ Recommended minimal config
     "src/**/*.tsx",
     "src/**/*.js",
     "src/**/*.jsx"
-  ]
+  ],
+  "depth": -1
 }
 \`\`\`
 

@@ -7,6 +7,7 @@ import { setupInstructionPrompt } from "./prompt/setup-instruction-prompt.js"
 import { hierarchyMenu } from "./utils/menu.js"
 import z from "zod"
 import { readDocument } from "./utils/read-document.js"
+import { search } from "./utils/search.js"
 
 // Parse command-line arguments
 function parseArgs() {
@@ -47,10 +48,13 @@ async function createServer(args: Record<string, string>) {
     const toolName = config.name
     server.tool(`${toolName}-menu`, `Get a menu of ${toolName}. Use it to understand the structure of ${toolName}.`, {
       subPath: z.string().optional().describe("Only show the menu of the sub path. Use it when you found the whole menu is too long."),
-    }, async ({ subPath }) => {
+      depth: z.number().optional().describe("Menu depth. Defaults to repo-reader.config.json depth when omitted. Use -1 for full depth (all)."),
+    }, async ({ subPath, depth }) => {
+      const effectiveDepth = depth ?? config.depth
       const tree = await hierarchyMenu({
         projectCloneLocation: projectCloneLocation,
         subPath,
+        depth: effectiveDepth,
       })
       return {
         content: [
@@ -71,6 +75,25 @@ async function createServer(args: Record<string, string>) {
       return {
         content: [
           { type: "text", text: file },
+        ],
+      }
+    })
+    server.tool(`${toolName}-search-file`, `Search text across files in ${toolName}`, {
+      query: z.string().describe("Search query. Supports plain text or regex if regex=true."),
+      caseSensitive: z.boolean().optional().describe("Whether the search is case sensitive. Default false."),
+      wholeWord: z.boolean().optional().describe("Match whole word only. Default false."),
+      regex: z.boolean().optional().describe("Treat query as regular expression. Default false."),
+    }, async ({ query, caseSensitive, wholeWord, regex }) => {
+      const searchResult = await search({
+        projectCloneLocation: projectCloneLocation,
+        query,
+        caseSensitive,
+        wholeWord,
+        regex,
+      })
+      return {
+        content: [
+          { type: "text", text: searchResult },
         ],
       }
     })

@@ -16,7 +16,8 @@
     "dev": "pnpm build && node dist/index.js",
     "build": "tsc",
     "prepublishOnly": "pnpm run build",
-    "print-tree": "pnpm build && node scripts/print-tree.mjs --dir=."
+    "print-tree": "pnpm build && node scripts/print-tree.mjs --dir=.",
+    "test-search": "pnpm build && node scripts/test-search.mjs"
   },
   "keywords": [
     "modelcontextprotocol",
