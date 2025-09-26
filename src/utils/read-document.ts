@@ -6,9 +6,13 @@ import { listFiles } from "./menu.js"
 export async function readDocument({
   projectCloneLocation,
   filePath,
+  line,
+  range,
 }: {
   projectCloneLocation: string
   filePath: string
+  line?: number
+  range?: number
 }) {
   const normalizedInput = normalizeOsPath(filePath)
   const directPath = path.join(projectCloneLocation, normalizedInput)
@@ -17,7 +21,8 @@ export async function readDocument({
   try {
     const stat = await fs.stat(directPath)
     if (stat.isFile()) {
-      return await fs.readFile(directPath, "utf-8")
+      const content = await fs.readFile(directPath, "utf-8")
+      return maybeSlice(content, line, range)
     }
   }
   catch {
@@ -68,5 +73,18 @@ export async function readDocument({
   }
 
   const [only] = Array.from(candidates)
-  return await fs.readFile(only, "utf-8")
+  const content = await fs.readFile(only, "utf-8")
+  return maybeSlice(content, line, range)
+}
+
+function maybeSlice(content: string, line?: number, range?: number) {
+  if (!line) return content
+  const lines = content.split(/\r?\n/)
+  const target = Math.max(1, Math.min(lines.length, Math.floor(line)))
+  const r = Math.max(0, Number.isFinite(range as number) ? Math.floor(range as number) : 3)
+  const start = Math.max(1, target - r)
+  const end = Math.min(lines.length, target + r)
+  const slice = lines.slice(start - 1, end).join("\n")
+  const header = `Lines ${start}-${end} of ${lines.length} (target ${target}, range ${r})\n`
+  return header + slice
 }
