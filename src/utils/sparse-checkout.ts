@@ -152,7 +152,7 @@ export async function createSparseCheckout({
   }
 
   // Pull latest changes for the sparse paths
-  await git.pull("origin", branch)
+  await git.pull("origin", branch, ["--ff-only"]) // avoid merge/rebase prompt on divergent histories
 
   return {
     projectCloneLocation,
