@@ -6,6 +6,7 @@ import { createSparseCheckout } from "./utils/sparse-checkout.js"
 import { setupInstructionPrompt } from "./prompt/setup-instruction-prompt.js"
 import { hierarchyMenu } from "./utils/menu.js"
 import z from "zod"
+import { readDocument } from "./utils/read-document.js"
 
 // Parse command-line arguments
 function parseArgs() {
@@ -59,6 +60,19 @@ async function createServer(args: Record<string, string>) {
             type: "text",
             text: tree,
           },
+        ],
+      }
+    })
+    server.tool(`${toolName}-read-file`, `Read a file of ${toolName}`, {
+      filePath: z.string().describe("The path of the file to read. You can use the menu to get the path. If the filename is unique, you can use the filename instead of the path."),
+    }, async ({ filePath }) => {
+      const file = await readDocument({
+        projectCloneLocation: projectCloneLocation,
+        filePath,
+      })
+      return {
+        content: [
+          { type: "text", text: file },
         ],
       }
     })

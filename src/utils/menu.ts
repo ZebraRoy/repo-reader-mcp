@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { normalizeOsPath } from "./normalize-path.js"
 
 const DEFAULT_IGNORES = new Set([
   ".git",
@@ -66,24 +67,6 @@ async function buildAsciiTree(
   return lines
 }
 
-function normalizeSubPath(subPath?: string) {
-  if (!subPath) return ""
-  let s = subPath.trim()
-  // Convert Windows backslashes to POSIX-style slashes
-  s = s.replace(/\\/g, "/")
-  // Strip Windows drive letters like C:
-  s = s.replace(/^[A-Za-z]:/, "")
-  // Remove leading and trailing slashes to avoid absolute paths
-  s = s.replace(/^\/+/g, "")
-  s = s.replace(/\/+$/g, "")
-  if (s.length === 0) return ""
-  // Remove empty, current dir, and parent dir segments for safety
-  const parts = s.split("/")
-    .filter(Boolean)
-    .filter(seg => seg !== "." && seg !== "..")
-  return parts.join(path.sep)
-}
-
 export async function hierarchyMenu({
   projectCloneLocation,
   depth,
@@ -96,7 +79,7 @@ export async function hierarchyMenu({
   const rootName = path.basename(path.resolve(projectCloneLocation))
   let treeLines: string[] = [rootName]
   try {
-    const dir = path.join(projectCloneLocation, normalizeSubPath(subPath))
+    const dir = path.join(projectCloneLocation, normalizeOsPath(subPath))
     const remainingDepth = depth && depth > 0 ? depth : undefined
     const childLines = await buildAsciiTree(dir, "", remainingDepth)
     treeLines = [rootName, ...childLines]
@@ -105,4 +88,41 @@ export async function hierarchyMenu({
     // If reading fails, still return the root
   }
   return treeLines.join("\n")
+}
+
+export async function listFiles({
+  projectCloneLocation,
+  subPath,
+}: {
+  projectCloneLocation: string
+  subPath?: string
+}) {
+  const results: string[] = []
+  const root = path.resolve(projectCloneLocation)
+  const startDir = path.join(projectCloneLocation, normalizeOsPath(subPath))
+
+  async function walk(dir: string): Promise<void> {
+    let dirents: import("fs").Dirent[]
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true })
+    }
+    catch {
+      return
+    }
+    for (const dirent of dirents) {
+      const name = dirent.name
+      if (shouldIgnore(name)) continue
+      const abs = path.join(dir, name)
+      if (dirent.isDirectory()) {
+        await walk(abs)
+      }
+      else if (dirent.isFile()) {
+        const rel = path.relative(root, abs)
+        results.push(rel)
+      }
+    }
+  }
+
+  await walk(startDir)
+  return results
 }
