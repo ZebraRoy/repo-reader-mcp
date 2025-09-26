@@ -4,6 +4,14 @@ import path from "path"
 import fs from "fs"
 import { RepoReaderConfigSchema } from "../schema/config.js"
 
+const DEFAULT_CONFIG = {
+  name: "repo",
+  files: [
+    "**/*",
+  ],
+  depth: -1 as number | undefined,
+}
+
 // clone it into user's home directory with project name subfolder
 const getCloneDir = (name: string, cloneLocation?: string) => {
   if (cloneLocation) {
@@ -101,36 +109,77 @@ export async function createSparseCheckout({
   // Always fetch the target branch shallowly to read config from it
   await git.fetch(["--depth", "1", "origin", branch])
 
-  // Step 1: get repo-reader.config.json from the repo of the branch
-  let configRaw: string | null = null
-  try {
-    // Prefer FETCH_HEAD which points to the just-fetched branch tip
-    configRaw = await git.raw(["show", `FETCH_HEAD:repo-reader.config.json`])
-  }
-  catch (_) {
-    // Fallback to remote ref notation
+  // Step 1: try to read repo-reader.config.json from the repo of the branch; fall back to default
+  let effectiveConfig: { name: string, files: string[], depth?: number }
+  const deriveRepoName = (input: string): string => {
+    // SSH form: git@host:user/repo.git
+    if (input.startsWith("git@")) {
+      const sshMatch = input.match(/^git@[^:]+:(.+)$/)
+      if (sshMatch) {
+        const pathPart = sshMatch[1]
+        const segments = pathPart.split("/")
+        const last = segments[segments.length - 1] || "repo"
+        return last.replace(/\.git$/i, "")
+      }
+    }
+    // HTTPS form
     try {
-      configRaw = await git.raw(["show", `origin/${branch}:repo-reader.config.json`])
+      const url = new URL(input)
+      const parts = url.pathname.split("/").filter(Boolean)
+      const last = parts[parts.length - 1] || "repo"
+      return last.replace(/\.git$/i, "")
     }
-    catch (_error) {
-      throw new Error(`repo-reader.config.json not found in branch '${branch}'. Ensure it exists at repository root.`)
+    catch {
+      const rough = input.split(/[\\/]/).pop() || "repo"
+      return rough.replace(/\.git$/i, "")
+    }
+  }
+  const defaultName = deriveRepoName(repoPath)
+  {
+    let configRaw: string | null = null
+    try {
+      // Prefer FETCH_HEAD which points to the just-fetched branch tip
+      configRaw = await git.raw(["show", `FETCH_HEAD:repo-reader.config.json`])
+    }
+    catch (_) {
+      // Fallback to remote ref notation
+      try {
+        configRaw = await git.raw(["show", `origin/${branch}:repo-reader.config.json`])
+      }
+      catch (_error) {
+        configRaw = null
+      }
+    }
+
+    if (configRaw) {
+      try {
+        const configJson: unknown = JSON.parse(configRaw)
+        const parsed = RepoReaderConfigSchema.safeParse(configJson)
+        if (parsed.success) {
+          // Merge with defaults; prefer repo values when provided
+          effectiveConfig = {
+            name: parsed.data.name ?? defaultName,
+            files: (parsed.data.files ?? DEFAULT_CONFIG.files) as string[],
+            depth: parsed.data.depth ?? DEFAULT_CONFIG.depth,
+          }
+        }
+        else {
+          // Invalid shape; use defaults
+          effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
+        }
+      }
+      catch {
+        // Invalid JSON; use defaults
+        effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
+      }
+    }
+    else {
+      // No config file; use defaults
+      effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
     }
   }
 
-  let configJson: unknown
-  try {
-    configJson = JSON.parse(configRaw)
-  }
-  catch (_error) {
-    throw new Error("Failed to parse repo-reader.config.json: invalid JSON")
-  }
-
-  // Validate fixed schema: { name: string, files: string[] }
-  const parsed = RepoReaderConfigSchema.safeParse(configJson)
-  if (!parsed.success) {
-    throw new Error("repo-reader.config.json must have shape { name: string, files: string[] }")
-  }
-  const sparsePaths = Array.from(new Set(parsed.data.files
+  const sparsePaths = Array.from(new Set(effectiveConfig.files
     .map(p => (typeof p === "string" ? p.replace(/\\/g, "/") : p))
     .filter(p => typeof p === "string" && p.length > 0))) as string[]
 
@@ -156,6 +205,6 @@ export async function createSparseCheckout({
 
   return {
     projectCloneLocation,
-    config: parsed.data,
+    config: effectiveConfig,
   }
 }

@@ -102,3 +102,19 @@ Other arguments:
 
 - `--branch`: The branch to read from. Default is `main`.
 - `--clone-location`: The location to clone the repository. Default is os.homedir() + ".temp-repo". This MCP will clone the repository to `/${cloneLocation}/name`.
+
+### Default configuration (no repo-reader.config.json)
+
+If the target repo cannot be modified to add `repo-reader.config.json`, the MCP falls back to a sane default config:
+
+```json
+{
+  "name": "<derived from repo URL>",
+  "files": ["**/*"],
+  "depth": -1
+}
+```
+
+- The MCP attempts to read `repo-reader.config.json` from the branch; if missing or invalid, defaults are used.
+- Default `name` is derived from the repository URL (e.g., `user/repo.git` → `repo`).
+- If the file exists but is partial, missing fields are filled with defaults.
