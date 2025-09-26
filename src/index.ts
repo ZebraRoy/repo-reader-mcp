@@ -47,11 +47,9 @@ async function createServer(args: Record<string, string>) {
     const toolName = config.name
     server.tool(`${toolName}-menu`, `Get a menu of ${toolName}. Use it to understand the structure of ${toolName}.`, {
       subPath: z.string().optional().describe("Only show the menu of the sub path. Use it when you found the whole menu is too long."),
-      depth: z.number().optional().describe("The depth of the menu. Only pass it when you found the whole menu is too long."),
-    }, async ({ subPath, depth }) => {
+    }, async ({ subPath }) => {
       const tree = await hierarchyMenu({
         projectCloneLocation: projectCloneLocation,
-        depth,
         subPath,
       })
       return {
