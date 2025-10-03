@@ -20,6 +20,29 @@ const getCloneDir = (name: string, cloneLocation?: string) => {
   return path.join(os.homedir(), ".temp-repo", name)
 }
 
+// Derive a sensible repository name from a repo URL/path
+const deriveRepoName = (input: string): string => {
+  if (input.startsWith("git@")) {
+    const sshMatch = input.match(/^git@[^:]+:(.+)$/)
+    if (sshMatch) {
+      const pathPart = sshMatch[1]
+      const segments = pathPart.split("/")
+      const last = segments[segments.length - 1] || "repo"
+      return last.replace(/\.git$/i, "")
+    }
+  }
+  try {
+    const url = new URL(input)
+    const parts = url.pathname.split("/").filter(Boolean)
+    const last = parts[parts.length - 1] || "repo"
+    return last.replace(/\.git$/i, "")
+  }
+  catch {
+    const rough = input.split(/[\\/]/).pop() || "repo"
+    return rough.replace(/\.git$/i, "")
+  }
+}
+
 const getAuthenticatedRepoPath = (repoPath: string, personalToken?: string) => {
   let authenticatedRepoPath = repoPath
   if (personalToken) {
@@ -77,7 +100,8 @@ export async function createSparseCheckout({
   filesOverride?: string[]
 }) {
   // Use project-specific clone location if not explicitly provided
-  const projectCloneLocation = getCloneDir(name, cloneLocation)
+  const effectiveNameForClone = name || deriveRepoName(repoPath)
+  const projectCloneLocation = getCloneDir(effectiveNameForClone, cloneLocation)
   const authenticatedRepoPath = getAuthenticatedRepoPath(repoPath, personalToken)
 
   // Ensure clone directory exists
@@ -108,33 +132,33 @@ export async function createSparseCheckout({
   }
 
   // Always fetch the target branch shallowly to read config from it
-  await git.fetch(["--depth", "1", "origin", branch])
+  // If a stale git lock (e.g., shallow.lock) is present from a prior crash,
+  // clean it up and retry once.
+  try {
+    await git.fetch(["--depth", "1", "origin", branch])
+  }
+  catch (error) {
+    const message = String((error as any)?.message || error)
+    if (message.includes("shallow.lock") || message.includes("File exists")) {
+      const shallowLock = path.join(projectCloneLocation, ".git", "shallow.lock")
+      try {
+        if (fs.existsSync(shallowLock)) {
+          fs.rmSync(shallowLock)
+        }
+      }
+      catch {
+        // ignore cleanup failure; we'll retry fetch regardless
+      }
+      // Retry once after cleanup
+      await git.fetch(["--depth", "1", "origin", branch])
+    }
+    else {
+      throw error
+    }
+  }
 
   // Step 1: try to read repo-reader.config.json from the repo of the branch; fall back to default
   let effectiveConfig: { name: string, files: string[], depth?: number }
-  const deriveRepoName = (input: string): string => {
-    // SSH form: git@host:user/repo.git
-    if (input.startsWith("git@")) {
-      const sshMatch = input.match(/^git@[^:]+:(.+)$/)
-      if (sshMatch) {
-        const pathPart = sshMatch[1]
-        const segments = pathPart.split("/")
-        const last = segments[segments.length - 1] || "repo"
-        return last.replace(/\.git$/i, "")
-      }
-    }
-    // HTTPS form
-    try {
-      const url = new URL(input)
-      const parts = url.pathname.split("/").filter(Boolean)
-      const last = parts[parts.length - 1] || "repo"
-      return last.replace(/\.git$/i, "")
-    }
-    catch {
-      const rough = input.split(/[\\/]/).pop() || "repo"
-      return rough.replace(/\.git$/i, "")
-    }
-  }
   const defaultName = deriveRepoName(repoPath)
   {
     let configRaw: string | null = null
