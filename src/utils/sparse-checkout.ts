@@ -236,8 +236,9 @@ export async function createSparseCheckout({
     await git.checkout(branch)
   }
 
-  // Pull latest changes for the sparse paths
-  await git.pull("origin", branch, ["--ff-only"]) // avoid merge/rebase prompt on divergent histories
+  // Ensure local branch exactly matches remote tip (avoids non-FF failures)
+  await git.fetch(["--depth", "1", "origin", branch])
+  await git.reset(["--hard", `origin/${branch}`])
 
   return {
     projectCloneLocation,
