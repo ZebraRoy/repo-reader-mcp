@@ -9,13 +9,13 @@ function globToRegExp(glob: string): RegExp {
   // Normalize path separators to '/'
   const normalized = glob.replace(/\\\\/g, "/")
   // Escape regex special chars, then restore globs
-  let pattern = normalized.replace(/[.+^${}()|\[\]\\]/g, "\\$&")
+  let pattern = normalized.replace(/[.+^${}()|[\]\\]/g, "\\$&")
   // '**' matches across directories
   pattern = pattern.replace(/\\\*\\\*/g, ".*")
   // '*' matches within a single path segment
   pattern = pattern.replace(/\\\*/g, "[^/]*")
   // '?' matches a single character within a segment
-  pattern = pattern.replace(/\\\?/g, "[^"])
+  pattern = pattern.replace(/\\\?/g, "[^/]")
   // Anchor to full string
   return new RegExp(`^${pattern}$`)
 }
@@ -123,12 +123,13 @@ export async function search({
   }
 
   // Sort paths for stable output
-  const sortedEntries = Array.from(byPath.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  const sortedEntries: Array<[string, Array<{ line: number, text: string }>]>
+    = Array.from(byPath.entries()).sort((a, b) => a[0].localeCompare(b[0]))
 
   // Paging defaults
   const effectivePageSize = typeof pageSize === "number" && pageSize > 0 ? pageSize : undefined
   const effectivePage = typeof page === "number" && page > 0 ? page : 1
-  const applyPaging = (items: any[]): any[] => {
+  function paginate<T>(items: T[]): T[] {
     if (!effectivePageSize) return items
     const start = (effectivePage - 1) * effectivePageSize
     if (start >= items.length) return []
@@ -136,13 +137,13 @@ export async function search({
   }
 
   if (filesOnly) {
-    const allFiles = sortedEntries.map(([p]) => p)
-    const pagedFiles = applyPaging(allFiles)
+    const allFiles: string[] = sortedEntries.map(([p]) => p)
+    const pagedFiles = paginate(allFiles)
     if (pagedFiles.length === 0) return "No results found."
     return pagedFiles.join("\n")
   }
 
-  const pagedEntries = applyPaging(sortedEntries)
+  const pagedEntries = paginate(sortedEntries)
   if (pagedEntries.length === 0) return "No results found."
   const sections: string[] = []
   for (const [p, lines] of pagedEntries) {
