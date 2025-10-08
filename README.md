@@ -126,7 +126,16 @@ If `--repo-path` is provided (and clone succeeds), the server exposes three tool
 
 - `{name}-menu`: Get a menu of `{name}`. Optional params: `subPath?: string`, `depth?: number` (use `-1` or omit for full depth; default mirrors repo config `depth` or `-1`).
 - `{name}-read-file`: Read a file. Params: `filePath: string`, `line?: number`, `range?: number`.
-- `{name}-search-file`: Search text across files. Params: `query: string`, `caseSensitive?: boolean`, `wholeWord?: boolean`, `regex?: boolean`.
+- `{name}-search-file`: Search text across files. Params:
+  - `query: string`
+  - `caseSensitive?: boolean`
+  - `wholeWord?: boolean`
+  - `regex?: boolean`
+  - `includeGlobs?: string[]` — only include files matching these globs (e.g., `['src/**', 'README.md']`).
+  - `excludeGlobs?: string[]` — exclude files matching these globs (e.g., `['**/*.min.js','dist/**']`).
+  - `page?: number` — 1-based page for paging output.
+  - `pageSize?: number` — items per page. If `filesOnly=true`, pages file paths; otherwise, pages file sections.
+  - `filesOnly?: boolean` — return only file paths that contain matches, one per line.
 
 ### Default configuration (no repo-reader.config.json)
 

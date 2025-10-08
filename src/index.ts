@@ -94,13 +94,23 @@ async function createServer(args: Record<string, string>) {
       caseSensitive: z.boolean().optional().describe("Whether the search is case sensitive. Default false."),
       wholeWord: z.boolean().optional().describe("Match whole word only. Default false."),
       regex: z.boolean().optional().describe("Treat query as regular expression. Default false."),
-    }, async ({ query, caseSensitive, wholeWord, regex }) => {
+      includeGlobs: z.array(z.string()).optional().describe("Only include files matching these glob patterns (e.g., ['src/**','README.md'])."),
+      excludeGlobs: z.array(z.string()).optional().describe("Exclude files matching these glob patterns (e.g., ['**/*.min.js','dist/**'])."),
+      page: z.number().optional().describe("1-based page number when paging results or files list."),
+      pageSize: z.number().optional().describe("Items per page when paging results (paths if filesOnly=true)."),
+      filesOnly: z.boolean().optional().describe("Show only the file paths that have matches, one per line."),
+    }, async ({ query, caseSensitive, wholeWord, regex, includeGlobs, excludeGlobs, page, pageSize, filesOnly }) => {
       const searchResult = await search({
         projectCloneLocation: projectCloneLocation,
         query,
         caseSensitive,
         wholeWord,
         regex,
+        includeGlobs,
+        excludeGlobs,
+        page,
+        pageSize,
+        filesOnly,
       })
       return {
         content: [

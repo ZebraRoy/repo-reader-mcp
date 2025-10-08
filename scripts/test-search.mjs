@@ -21,7 +21,7 @@ function parseArgs() {
 }
 
 async function main() {
-  const { dir, query, caseSensitive, wholeWord, regex } = parseArgs()
+  const { dir, query, caseSensitive, wholeWord, regex, include, exclude, page, pageSize, filesOnly } = parseArgs()
   const projectDir = dir ? path.resolve(dir) : process.cwd()
 
   if (!fs.existsSync(projectDir)) {
@@ -48,6 +48,11 @@ async function main() {
     caseSensitive: caseSensitive === "true" || caseSensitive === "1",
     wholeWord: wholeWord === "true" || wholeWord === "1",
     regex: regex === "true" || regex === "1",
+    includeGlobs: typeof include === "string" && include.length > 0 ? include.split(",").map(s => s.trim()).filter(Boolean) : undefined,
+    excludeGlobs: typeof exclude === "string" && exclude.length > 0 ? exclude.split(",").map(s => s.trim()).filter(Boolean) : undefined,
+    page: page ? Number(page) : undefined,
+    pageSize: pageSize ? Number(pageSize) : undefined,
+    filesOnly: filesOnly === "true" || filesOnly === "1",
   })
   console.log(output)
 }
