@@ -159,7 +159,7 @@ export async function createSparseCheckout({
 
   // Step 1: try to read repo-reader.config.json from the repo of the branch; fall back to default
   let effectiveConfig: { name: string, files: string[], depth?: number }
-  const defaultName = deriveRepoName(repoPath)
+  const defaultName = name || deriveRepoName(repoPath)
   {
     let configRaw: string | null = null
     try {
