@@ -8,6 +8,7 @@ import { hierarchyMenu } from "./utils/menu.js"
 import z from "zod"
 import { readDocument } from "./utils/read-document.js"
 import { search } from "./utils/search.js"
+import { createLocalReference } from "./utils/local-reference.js"
 
 // Parse command-line arguments
 function parseArgs() {
@@ -33,6 +34,7 @@ function getDefaultDepth(config: { depth?: number }) {
 async function createServer(args: Record<string, string>) {
   const name = args["name"]
   const repoPath = args["repo-path"]
+  const localPath = args["local-path"]
   const personalToken = args["personal-token"]
   const branch = args["branch"] || "main"
   const cloneLocation = args["clone-location"]
@@ -43,15 +45,26 @@ async function createServer(args: Record<string, string>) {
     version: "0.1.0",
     description: "Repo Reader MCP",
   })
-  if (repoPath) {
-    const { projectCloneLocation, config } = await createSparseCheckout({
-      name,
-      repoPath,
-      branch,
-      cloneLocation,
-      personalToken,
-      filesOverride,
-    })
+  if (repoPath && localPath) {
+    throw new Error("Provide only one of --repo-path or --local-path.")
+  }
+
+  if (repoPath || localPath) {
+    const resolved = repoPath
+      ? await createSparseCheckout({
+          name,
+          repoPath,
+          branch,
+          cloneLocation,
+          personalToken,
+          filesOverride,
+        })
+      : await createLocalReference({
+          name,
+          localPath: localPath!,
+          filesOverride,
+        })
+    const { projectCloneLocation, config } = resolved
     const toolName = config.name
     server.tool(`${toolName}-menu`, `Get a menu of ${toolName}. Use it to understand the structure of ${toolName}.`, {
       subPath: z.string().optional().describe("Only show the menu of the sub path. Use it when you found the whole menu is too long."),
@@ -62,6 +75,7 @@ async function createServer(args: Record<string, string>) {
         projectCloneLocation: projectCloneLocation,
         subPath,
         depth: effectiveDepth,
+        includeGlobs: config.files,
       })
       return {
         content: [
@@ -82,6 +96,7 @@ async function createServer(args: Record<string, string>) {
         filePath,
         line,
         range,
+        includeGlobs: config.files,
       })
       return {
         content: [
@@ -106,6 +121,7 @@ async function createServer(args: Record<string, string>) {
         caseSensitive,
         wholeWord,
         regex,
+        baseIncludeGlobs: config.files,
         includeGlobs,
         excludeGlobs,
         page,

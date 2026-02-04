@@ -81,10 +81,53 @@ Cursor Windows:
 }
 ```
 
+### Reading a local folder (no git clone)
+
+If you already have the dependency checked out locally, you can point repo-reader at a folder instead of a git URL.
+
+Cursor Mac/Linux:
+
+```json
+{
+  "mcpServers": {
+    "repo-reader-mcp-{name}": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "repo-reader-mcp",
+        "--name={name}",
+        "--local-path=/absolute/path/to/repo-or-folder"
+      ]
+    }
+  }
+}
+```
+
+Cursor Windows:
+
+```json
+{
+  "mcpServers": {
+    "repo-reader-mcp-{name}": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "repo-reader-mcp",
+        "--name={name}",
+        "--local-path=C:\\absolute\\path\\to\\repo-or-folder"
+      ]
+    }
+  }
+}
+```
+
 Notes:
 
 - The server dynamically exposes tools using the configured name from `repo-reader.config.json` or the `--name` CLI flag. If neither is set, the tool name defaults to the repository name derived from the URL.
 - When no `--repo-path` is provided, only a single tool `repo-reader-setup` is exposed to guide setup.
+ - Provide only one of `--repo-path` or `--local-path`.
 
 To access private repositories, you either need direct access or a token.
 If you have a token, you can use `--personal-token` or embed the token in the repo URL.
@@ -119,6 +162,7 @@ Other arguments:
 - `--clone-location`: Directory to clone into. Default: `${os.homedir()}/.temp-repo`. The full clone path is `${cloneLocation}/{name}`.
 - `--files`: Comma-separated glob patterns to override repo config `files` for sparse checkout (e.g., `src/**,README.md,.github/**`).
 - `--name`: Override the tool/server name. If omitted, the name derives from repo URL or config.
+- `--local-path`: Use an existing local folder as the source instead of cloning a git repo.
 
 ### Tools exposed when configured
 

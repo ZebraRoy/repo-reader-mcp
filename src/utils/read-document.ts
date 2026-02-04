@@ -2,17 +2,22 @@ import path from "path"
 import fs from "fs/promises"
 import { normalizeOsPath } from "./normalize-path.js"
 import { listFiles } from "./menu.js"
+import { matchesAny, matchesNone } from "./glob.js"
 
 export async function readDocument({
   projectCloneLocation,
   filePath,
   line,
   range,
+  includeGlobs,
+  excludeGlobs,
 }: {
   projectCloneLocation: string
   filePath: string
   line?: number
   range?: number
+  includeGlobs?: string[]
+  excludeGlobs?: string[]
 }) {
   const normalizedInput = normalizeOsPath(filePath)
   const directPath = path.join(projectCloneLocation, normalizedInput)
@@ -21,6 +26,10 @@ export async function readDocument({
   try {
     const stat = await fs.stat(directPath)
     if (stat.isFile()) {
+      const rel = path.relative(projectCloneLocation, directPath)
+      if (!matchesAny(rel, includeGlobs) || !matchesNone(rel, excludeGlobs)) {
+        throw new Error(`File not allowed by configured globs: ${filePath}`)
+      }
       const content = await fs.readFile(directPath, "utf-8")
       return maybeSlice(content, line, range)
     }
@@ -40,7 +49,7 @@ export async function readDocument({
   const inputBaseNoExt = path.parse(inputBase).name
   const inputPathNoExt = stripExtension(normalizedInput)
 
-  const files = await listFiles({ projectCloneLocation })
+  const files = await listFiles({ projectCloneLocation, includeGlobs, excludeGlobs })
   const candidates = new Set<string>()
 
   for (const rel of files) {

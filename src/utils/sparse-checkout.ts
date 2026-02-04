@@ -2,15 +2,7 @@ import { simpleGit } from "simple-git"
 import os from "os"
 import path from "path"
 import fs from "fs"
-import { RepoReaderConfigSchema } from "../schema/config.js"
-
-const DEFAULT_CONFIG = {
-  name: "repo",
-  files: [
-    "**/*",
-  ],
-  depth: -1 as number | undefined,
-}
+import { resolveRepoReaderConfig } from "./resolve-config.js"
 
 // clone it into user's home directory with project name subfolder
 const getCloneDir = (name: string, cloneLocation?: string) => {
@@ -92,10 +84,10 @@ const getAuthenticatedRepoPath = (repoPath: string, personalToken?: string) => {
 export async function createSparseCheckout({
   name, repoPath, branch, cloneLocation, personalToken, filesOverride,
 }: {
-  name: string
+  name?: string
   repoPath: string
   branch: string
-  cloneLocation: string
+  cloneLocation?: string
   personalToken?: string
   filesOverride?: string[]
 }) {
@@ -138,7 +130,9 @@ export async function createSparseCheckout({
     await git.fetch(["--depth", "1", "origin", branch])
   }
   catch (error) {
-    const message = String((error as any)?.message || error)
+    const message = (typeof error === "object" && error && "message" in error)
+      ? String((error as { message?: unknown }).message)
+      : String(error)
     if (message.includes("shallow.lock") || message.includes("File exists")) {
       const shallowLock = path.join(projectCloneLocation, ".git", "shallow.lock")
       try {
@@ -158,10 +152,9 @@ export async function createSparseCheckout({
   }
 
   // Step 1: try to read repo-reader.config.json from the repo of the branch; fall back to default
-  let effectiveConfig: { name: string, files: string[], depth?: number }
+  let configRaw: string | null = null
   const defaultName = name || deriveRepoName(repoPath)
   {
-    let configRaw: string | null = null
     try {
       // Prefer FETCH_HEAD which points to the just-fetched branch tip
       configRaw = await git.raw(["show", `FETCH_HEAD:repo-reader.config.json`])
@@ -176,44 +169,24 @@ export async function createSparseCheckout({
       }
     }
 
-    if (configRaw) {
-      try {
-        const configJson: unknown = JSON.parse(configRaw)
-        const parsed = RepoReaderConfigSchema.safeParse(configJson)
-        if (parsed.success) {
-          // Merge with defaults; prefer repo values when provided
-          effectiveConfig = {
-            name: parsed.data.name ?? defaultName,
-            files: (parsed.data.files ?? DEFAULT_CONFIG.files) as string[],
-            depth: parsed.data.depth ?? DEFAULT_CONFIG.depth,
-          }
-        }
-        else {
-          // Invalid shape; use defaults
-          effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
-        }
-      }
-      catch {
-        // Invalid JSON; use defaults
-        effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
-      }
+    // if configRaw is null, resolveRepoReaderConfig will fall back to defaults
+  }
+
+  let configJson: unknown | null = null
+  if (configRaw) {
+    try {
+      configJson = JSON.parse(configRaw)
     }
-    else {
-      // No config file; use defaults
-      effectiveConfig = { ...DEFAULT_CONFIG, name: defaultName }
+    catch {
+      configJson = null
     }
   }
 
-  // Apply files override from CLI if provided
-  if (Array.isArray(filesOverride) && filesOverride.length > 0) {
-    const cleaned = filesOverride
-      .map(pattern => (typeof pattern === "string" ? pattern.trim() : ""))
-      .filter(pattern => pattern.length > 0)
-      .map(pattern => pattern.replace(/\\/g, "/"))
-    if (cleaned.length > 0) {
-      effectiveConfig.files = cleaned
-    }
-  }
+  const effectiveConfig = resolveRepoReaderConfig({
+    defaultName,
+    configJson,
+    filesOverride,
+  })
 
   const sparsePaths = Array.from(new Set(effectiveConfig.files
     .map(p => (typeof p === "string" ? p.replace(/\\/g, "/") : p))

@@ -1,42 +1,15 @@
 import fs from "fs/promises"
 import path from "path"
 import { listFiles } from "./menu.js"
+import { makeTextSearchRegExp, matchesAny, matchesNone } from "./glob.js"
 
-function escapeRegExp(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-function globToRegExp(glob: string): RegExp {
-  // Normalize path separators to '/'
-  const normalized = glob.replace(/\\\\/g, "/")
-  // Escape regex special chars, then restore globs
-  let pattern = normalized.replace(/[.+^${}()|[\]\\]/g, "\\$&")
-  // '**' matches across directories
-  pattern = pattern.replace(/\\\*\\\*/g, ".*")
-  // '*' matches within a single path segment
-  pattern = pattern.replace(/\\\*/g, "[^/]*")
-  // '?' matches a single character within a segment
-  pattern = pattern.replace(/\\\?/g, "[^/]")
-  // Anchor to full string
-  return new RegExp(`^${pattern}$`)
-}
-function matchesAny(filePath: string, patterns?: string[]): boolean {
-  if (!patterns || patterns.length === 0) return true
-  const posixPath = filePath.replace(/\\\\/g, "/")
-  const regs = patterns.map(globToRegExp)
-  return regs.some(r => r.test(posixPath))
-}
-function matchesNone(filePath: string, patterns?: string[]): boolean {
-  if (!patterns || patterns.length === 0) return true
-  const posixPath = filePath.replace(/\\\\/g, "/")
-  const regs = patterns.map(globToRegExp)
-  return regs.every(r => !r.test(posixPath))
-}
 export async function search({
   projectCloneLocation,
   query,
   caseSensitive = false,
   wholeWord = false,
   regex = false,
+  baseIncludeGlobs,
   includeGlobs,
   excludeGlobs,
   page,
@@ -48,6 +21,7 @@ export async function search({
   caseSensitive?: boolean
   wholeWord?: boolean
   regex?: boolean
+  baseIncludeGlobs?: string[]
   includeGlobs?: string[]
   excludeGlobs?: string[]
   page?: number
@@ -58,28 +32,16 @@ export async function search({
   if (q.length === 0) return ""
 
   // Build matcher
-  let pattern = q
-  let flags = "g"
-  if (!caseSensitive) flags += "i"
-  if (!regex) {
-    pattern = escapeRegExp(pattern)
-  }
-  if (wholeWord) {
-    pattern = `\\b(?:${pattern})\\b`
-  }
-  let compiled: RegExp
-  try {
-    compiled = new RegExp(pattern, flags)
-  }
-  catch (error) {
-    return `Invalid regular expression: ${(error as Error).message}`
-  }
+  const { compiled, error } = makeTextSearchRegExp({ query: q, caseSensitive, wholeWord, regex })
+  if (error) return error
+  if (!compiled) return ""
 
-  const files = await listFiles({ projectCloneLocation })
+  const files = await listFiles({ projectCloneLocation, includeGlobs: baseIncludeGlobs })
   const results: Array<{ path: string, line: number, text: string }> = []
 
   for (const rel of files) {
     // Apply include/exclude filters
+    if (!matchesAny(rel, baseIncludeGlobs)) continue
     if (!matchesAny(rel, includeGlobs)) continue
     if (!matchesNone(rel, excludeGlobs)) continue
     const abs = path.join(projectCloneLocation, rel)
